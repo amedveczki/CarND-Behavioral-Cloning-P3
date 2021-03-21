@@ -14,6 +14,7 @@ if sys.platform == "win32":
     ROOT = "minitrain/"
 else:
     ROOT = "/opt/training/"
+    #ROOT = "minitrain/"
 
 
 CSV = ROOT + "driving_log.csv"
@@ -39,7 +40,7 @@ def correct_fname(fname):
 
 flip = False
 flip_and_leftright = True
-leftright_bias = 2
+leftright_bias = 1
 
 def generator(samples, batch_size=32):
     num_samples = len(samples)
@@ -58,6 +59,7 @@ def generator(samples, batch_size=32):
             for batch_sample in batch_samples:
                 name = correct_fname(batch_sample[0])
                 center_image = cv2.imread(name)
+                center_image = cv2.cvtColor(center_image, cv2.COLOR_BGR2RGB)
                 center_angle = float(batch_sample[3])
                 images.append(center_image)
                 angles.append(center_angle)
@@ -68,7 +70,10 @@ def generator(samples, batch_size=32):
                     
                 if flip_and_leftright:
                     left_image = cv2.imread(correct_fname(batch_sample[1]))
+                    left_image = cv2.cvtColor(left_image, cv2.COLOR_BGR2RGB)
+
                     right_image = cv2.imread(correct_fname(batch_sample[2]))
+                    right_image = cv2.cvtColor(right_image, cv2.COLOR_BGR2RGB)
                     images.append(left_image)
                     angles.append(center_angle + leftright_bias)
                     images.append(right_image)
