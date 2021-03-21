@@ -27,12 +27,15 @@ model = Sequential()
 
 # set up lambda layer
 
+flip = False
 
 def generator(samples, batch_size=32):
     num_samples = len(samples)
+    if flip:
+        batch_size /= 2
     while 1: # Loop forever so the generator never terminates
         shuffle(samples)
-        for offset in range(0, num_samples, batch_size//2):
+        for offset in range(0, num_samples, batch_size):
             batch_samples = samples[offset:offset+batch_size]
 
             images = []
@@ -43,6 +46,8 @@ def generator(samples, batch_size=32):
                 center_angle = float(batch_sample[3])
                 images.append(center_image)
                 angles.append(center_angle)
+
+            if flip:
                 images.append(np.fliplr(center_image))
                 angles.append(-center_angle)
 
@@ -86,12 +91,17 @@ model.add(Dense(1))
 print("Compiling model...")
 model.compile(loss='mse', optimizer='adam')
 
+num_samples = len(train_samples)
+num_val_samples = len(validation_samples)
+if flip:
+    num_val_samples *= 2
+    num_samples *= 2
 
 print("Fitting model...")
 history_object = model.fit_generator(train_generator, samples_per_epoch =
-    len(train_samples) * 2, validation_data = 
+    num_samples, validation_data = 
     validation_generator,
-    nb_val_samples = len(validation_samples) * 2, 
+    nb_val_samples = num_val_samples, 
     nb_epoch=5, verbose=1)
 
 print("Saving model")
@@ -102,9 +112,10 @@ print("All done")
 print(history_object.history.keys())
 print(history_object)
 import pickle
-f = file("history.pickle", 'wb')
+f = open("history.pickle", 'wb')
 pickle.dump(history_object, f)
 f.close
+
 import matplotlib.pyplot as plt
 ### plot the training and validation loss for each epoch
 plt.plot(history_object.history['loss'])
