@@ -28,10 +28,6 @@ with open(CSV) as csvfile:
 from sklearn.model_selection import train_test_split
 train_samples, validation_samples = train_test_split(lines, test_size=0.2)
 
-
-
-model = Sequential()
-
 def correct_fname(fname):
     return ROOT + fname.split('\\')[-1]
 
@@ -44,6 +40,8 @@ leftright_bias = 1
 
 def generator(samples, batch_size=32):
     num_samples = len(samples)
+
+    # Decrease internal batch size as we are providing more images per single line of sample
     if flip:
         batch_size //= 2
     elif flip_and_leftright:
@@ -64,11 +62,13 @@ def generator(samples, batch_size=32):
                 images.append(center_image)
                 angles.append(center_angle)
 
+                # flip if flip or flip + take left and right images
                 if flip or flip_and_leftright:
                     images.append(np.fliplr(center_image))
                     angles.append(-center_angle)
                     
                 if flip_and_leftright:
+                    # Based on "leftright_bias" include left/right pictures
                     left_image = cv2.imread(correct_fname(batch_sample[1]))
                     left_image = cv2.cvtColor(left_image, cv2.COLOR_BGR2RGB)
 
@@ -91,32 +91,30 @@ batch_size=32
 train_generator = generator(train_samples, batch_size=batch_size)
 validation_generator = generator(validation_samples, batch_size=batch_size)
 
-#ch, row, col = 3, 80, 320  # Trimmed image format
-
 print("Creating sequential model")
 model = Sequential()
-# Preprocess incoming data, centered around zero with small standard deviation 
-#model.add(Lambda(lambda x: x/127.5 - 1.,
-#        input_shape=(ch, row, col),
-#        output_shape=(ch, row, col)))
 
-model.add(Cropping2D(cropping=((50,27), (0,0)), input_shape=(160,320,3))) # TODO - check crop
+# Add some cropping which cuts upper and lower part of the image
+model.add(Cropping2D(cropping=((50,27), (0,0)), input_shape=(160,320,3)))
+model.add(Lambda(lambda x: (x / 255.0) - 0.5))
 
-model.add(Lambda(lambda x: (x / 255.0) - 0.5))#, input_shape=(160,320,3)))
-#model.add(Flatten(input_shape=160,320,3)))
+# Subsampling here is modified compared to NVIDIA network as there wouldn't be enough pixels
 model.add(Conv2D(24,(5,5),subsample=(1,2),activation="relu"))
 model.add(Conv2D(36,(5,5),subsample=(2,2),activation="relu"))
 model.add(Conv2D(48,(5,5),subsample=(2,2),activation="relu"))
+
+# Dropout to help overfitting
 model.add(Dropout(0.5))
 model.add(Conv2D(64,(5,5),subsample=(1,1),activation="relu"))
 model.add(Conv2D(64,(5,5),subsample=(1,1),activation="relu"))
 model.add(Flatten())
 model.add(Dense(100))
+
+# Another dropout to help overfitting
 model.add(Dropout(0.5))
 model.add(Dense(50))
 model.add(Dense(10))
 model.add(Dense(1))
-
 
 print("Compiling model...")
 model.compile(loss='mse', optimizer='adam')
@@ -142,9 +140,8 @@ print("Saving model")
 
 model.save('model.h5')
 print("All done")
-### print the keys contained in the history object
-print(history_object.history.keys())
-print(history_object)
+
+# Save history for further processing if needed
 import pickle
 f = open("history.pickle", 'wb')
 pickle.dump(history_object, f)
